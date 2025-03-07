@@ -28,6 +28,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Create .env files for each service
+        run: |
+          echo "${{ secrets.ENV_API_GATEWAY }}" > Learn-Nodejs-microservices-2025/api-gateway/.env
+          echo "${{ secrets.ENV_IDENTITY_SERVICE }}" > Learn-Nodejs-microservices-2025/identity-service/.env
+          echo "${{ secrets.ENV_MEDIA_SERVICE }}" > Learn-Nodejs-microservices-2025/media-service/.env
+          echo "${{ secrets.ENV_POST_SERVICE }}" > Learn-Nodejs-microservices-2025/post-service/.env
+          echo "${{ secrets.ENV_SEARCH_SERVICE }}" > Learn-Nodejs-microservices-2025/search-service/.env
+
       - name: Build and push Docker images
         run: |
           docker-compose -f docker-compose.yml build
@@ -44,7 +52,7 @@ jobs:
       - name: Add VPS SSH host key to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H 62.72.30.37 >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.VPS_SSH_IP }} >> ~/.ssh/known_hosts
 
       - name: Set up SSH key for authentication
         run: |
@@ -52,20 +60,38 @@ jobs:
           echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      - name: Copy .env files to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_SSH_IP }}
+          username: ${{ secrets.VPS_SSH_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          source: "services/service-a/.env"
+          target: "/home/roihan/projects/Nodejs-microservices-2025/services/service-a/"
+
+      - name: Copy .env for Service B
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_SSH_IP }}
+          username: ${{ secrets.VPS_SSH_USERNAME }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          source: "services/service-b/.env"
+          target: "/home/roihan/projects/Nodejs-microservices-2025/services/service-b/"
+
       - name: SSH into VPS and deploy
         uses: appleboy/ssh-action@v0.1.5
         with:
-          host: 62.72.30.37
-          username: root
+          host: ${{ secrets.VPS_SSH_IP }}
+          username: ${{ secrets.VPS_SSH_USERNAME }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd /home/root/projects/nodejsfullcourse/NodeJS-Microservices
+            cd /home/roihan/projects/Nodejs-microservices-2025/
             git pull origin master
             docker-compose down
             docker-compose up -d
 
       - name: Debug SSH connection (optional)
         run: |
-          ssh -v -i ~/.ssh/id_rsa root@62.72.30.37 "echo 'SSH connection successful'"
+          ssh -v -i ~/.ssh/id_rsa ${{ secrets.VPS_SSH_USERNAME }}@${{ secrets.VPS_SSH_IP }} "echo 'SSH connection successful'"
         continue-on-error: true
